@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use std::fs;
 
 #[derive(Component)]
 struct Voxel;
@@ -7,7 +8,7 @@ struct Voxel;
 struct VoxelId(u32);
 
 #[derive(Component)]
-struct Line(VoxelId, u32);
+struct Line(VoxelId, f32);
 
 #[derive(Component)]
 struct Vel(f32, f32);
@@ -26,61 +27,50 @@ fn setup(mut commands : Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
 
+
 fn spawn_voxels(mut commands : Commands) {
-    commands.spawn_bundle(SpriteBundle {
-        sprite : Sprite {
-            color : Color::rgb(1., 1., 1.),
+    let file = fs::read_to_string(r"E:\Rust Projects\phys2d\src\Voxel.json").expect("Unable to read file");
+    let json: serde_json::Value = serde_json::from_str(file.as_str()).expect("JSON was not well-formatted");
+    let mut id = 0;
+    for i in json.as_array().unwrap() {
+        let mut vox = commands.spawn_bundle(SpriteBundle {
+            sprite : Sprite {
+                color : Color::rgb(
+                    i["Color"]["r"].as_f64().unwrap() as f32 / 255., 
+                    i["Color"]["g"].as_f64().unwrap() as f32 / 255., 
+                    i["Color"]["b"].as_f64().unwrap() as f32 / 255.),
+                ..Default::default()
+            },
+            transform : Transform {
+                scale : Vec3::new(10., 10., 10.),
+                translation : Vec3::new(
+                    i["pos"][0].as_f64().unwrap() as f32, 
+                    i["pos"][1].as_f64().unwrap() as f32, 
+                    0.),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        transform : Transform {
-            scale : Vec3::new(10., 10., 10.),
-            translation : Vec3::new(0., 0., 0.),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .insert(Voxel)
-    .insert(Vel(0., 0.))
-    .insert(Acc(0., 0.))
-    .insert(VoxelId(0))
-    .insert(Line(VoxelId(1), 100))
-    .insert(IsFixed(true));
-    commands.spawn_bundle(SpriteBundle {
-        sprite : Sprite {
-            color : Color::rgb(1., 1., 1.),
-            ..Default::default()
-        },
-        transform : Transform {
-            scale : Vec3::new(10., 10., 10.),
-            translation : Vec3::new(0., 100., 0.),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .insert(Voxel)
-    .insert(Vel(0., 0.))
-    .insert(Acc(0., -1.))
-    .insert(VoxelId(1))
-    .insert(Line(VoxelId(0), 100))
-    .insert(IsFixed(false));
-    commands.spawn_bundle(SpriteBundle {
-        sprite : Sprite {
-            color : Color::rgb(1., 1., 1.),
-            ..Default::default()
-        },
-        transform : Transform {
-            scale : Vec3::new(10., 10., 10.),
-            translation : Vec3::new(1., 200., 0.),
-            ..Default::default()
-        },
-        ..Default::default()
-    })
-    .insert(Voxel)
-    .insert(Vel(100., 0.))
-    .insert(Acc(0., -1.))
-    .insert(VoxelId(2))
-    .insert(Line(VoxelId(1), 100))
-    .insert(IsFixed(false));
+        });
+        vox
+        .insert(Voxel)
+        .insert(Vel(
+            i["vel"][0].as_f64().unwrap() as f32, 
+            i["vel"][0].as_f64().unwrap() as f32
+        ))
+        .insert(Acc(
+            i["acc"][0].as_f64().unwrap() as f32, 
+            i["acc"][0].as_f64().unwrap() as f32 - 1.
+        ))
+        .insert(VoxelId(id))
+        .insert(IsFixed(i["is fixed"].as_bool().unwrap()));
+        for j in i["Line"].as_array().unwrap(){
+            vox.insert(Line(
+                VoxelId(j["Id"].as_i64().unwrap() as u32),
+                j["Length"].as_f64().unwrap() as f32,
+            ));
+        }
+        id += 1;
+    }
 }
 
 fn update (
